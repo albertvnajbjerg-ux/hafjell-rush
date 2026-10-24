@@ -1,0 +1,13 @@
+const playwright = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { chromium } = playwright.default || playwright;
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root=fileURLToPath(new URL('..',import.meta.url));
+const types={'.html':'text/html','.js':'text/javascript','.css':'text/css'};
+const server=createServer(async(req,res)=>{try{const file=await readFile(join(root,req.url==='/'?'index.html':req.url));res.writeHead(200,{'content-type':req.url==='/'?'text/html':(types[extname(req.url)]||'application/octet-stream')});res.end(file)}catch{res.writeHead(404);res.end()}});
+await new Promise(resolve=>server.listen(0,resolve));
+const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1280,height:800}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const host='local'+'host';await page.goto(`http://${host}:${server.address().port}/`);await page.waitForTimeout(1200);await page.getByRole('button',{name:/Start 2-spillerløb/}).click();await page.waitForTimeout(600);if(errors.length)console.log('PAGE_ERRORS',errors);
+const result=await page.evaluate(()=>{if(!window.__hafjell)throw new Error('hook missing; module errors: '+JSON.stringify(window.__hafjell));window.__hafjell.finish();return{hook:!!window.__hafjell,finishVisible:!document.querySelector('#finish').classList.contains('hidden')}});if(errors.length||!result.hook||!result.finishVisible)throw new Error(JSON.stringify({errors,result}));console.log('PASS',JSON.stringify(result));await browser.close();server.close();
